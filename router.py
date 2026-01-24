@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 import os
 import math
 import random
+import streamlit as st
 
 load_dotenv()
-client = openrouteservice.Client(key=os.getenv("ORS_API_KEY"))
 
 
 def get_bearing_from_text(direction_text):
@@ -34,6 +34,25 @@ def get_bearing_from_text(direction_text):
 
 
 def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
+    # Initialize Client safely
+    api_key = os.getenv("ORS_API_KEY")
+    # Fallback to streamlit secrets if not in env (common in Cloud)
+    if not api_key:
+        try:
+            api_key = st.secrets["ORS_API_KEY"]
+        except Exception:
+            pass
+
+    if not api_key:
+        print("Error: ORS_API_KEY not found in environment or secrets.")
+        return None, 0
+
+    try:
+        client = openrouteservice.Client(key=api_key)
+    except Exception as e:
+        print(f"Error initializing OpenRouteService client: {e}")
+        return None, 0
+
     best_route = None
     best_diff = float("inf")
 
