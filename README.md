@@ -1,5 +1,8 @@
 # 🧶 Project Ariadne (WIP)
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://projectariadne.streamlit.app/)
+
+
 **Project Ariadne** is an AI-powered running route generator. It uses an LLM agent to interpret natural language requests (e.g., "5km loop north") and generates a running route on a map using OpenRouteService.
 
 > 🚧 **Work In Progress**: This project is under active development. Features and APIs may change.
