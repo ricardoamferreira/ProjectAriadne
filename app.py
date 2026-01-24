@@ -155,6 +155,23 @@ with hud_col1:
     else:
         st.metric(label="DISTANCE", value="0.00 km")
 
+with hud_col2:
+    if st.session_state["route"]:
+        # Calculate total elevation gain
+        total_gain = 0
+        route = st.session_state["route"]
+        for i in range(1, len(route)):
+            diff = route[i][2] - route[i - 1][2]
+            if diff > 0:
+                total_gain += diff
+
+        gain_ft = total_gain * 3.28084
+        st.metric(
+            label="ELEVATION GAIN", value=f"{int(total_gain)} m / {int(gain_ft)} ft"
+        )
+    else:
+        st.metric(label="ELEVATION GAIN", value="0 m")
+
 # 2. Main Map
 # Center logic
 center = (
@@ -235,6 +252,7 @@ if st.session_state["route"] and "chart_data" in locals():
             x=alt.X(
                 "Distance (km)",
                 axis=alt.Axis(grid=False, labelColor="#9CA3AF", titleColor="#9CA3AF"),
+                scale=alt.Scale(domain=[0, distances[-1]]),
             ),
             y=alt.Y(
                 "Elevation (m)",

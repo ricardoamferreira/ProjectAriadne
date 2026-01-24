@@ -76,9 +76,16 @@ def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
         # Convert direction to bearing
         base_angle = get_bearing_from_text(direction)
 
+        # Add random jitter to the bearing (+/- 15 degrees)
+        # This ensures we don't always go exactly North/South/etc
+        base_angle += random.uniform(-15, 15)
+
         # Calculate points B and C for the loop triangle using the specific bearing
-        angle_b = math.radians(base_angle - 30)
-        angle_c = math.radians(base_angle + 30)
+        # Randomize the spread (20-60 degrees) to vary the triangle shape
+        spread = random.uniform(20, 60)
+
+        angle_b = math.radians(base_angle - spread)
+        angle_c = math.radians(base_angle + spread)
 
         # Point B coordinates
         lat_b = start_lat + (d / R) * (180 / math.pi) * math.cos(angle_b)
