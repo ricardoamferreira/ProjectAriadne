@@ -12,8 +12,10 @@ st.markdown(
 <style>
     /* Remove default top padding */
     .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
     }
     
     /* Sidebar styling */
@@ -77,10 +79,12 @@ with st.sidebar:
     st.header("🧠 Ariadne AI")
 
     # User input
-    user_query = st.text_input("Ask your coach:", placeholder="e.g., '10km loop'")
+    with st.form("input_form"):
+        user_query = st.text_input("Ask your coach:", placeholder="e.g., '10km loop'")
+        submitted = st.form_submit_button("Submit Request", type="primary")
 
     # Submit action
-    if st.button("Submit Request", type="primary"):
+    if submitted:
         if not st.session_state["clicks"]:
             st.error("⚠️ Click the map to set a Start Point first.")
         elif not user_query:
@@ -119,12 +123,18 @@ with st.sidebar:
         st.rerun()
 
 # Main map configuration
-st.title("🧶 Project Ariadne")
+# st.title removed to save space
 
+# Center logic
 center = (
     st.session_state["clicks"][-1] if st.session_state["clicks"] else [51.5074, -0.1278]
 )
-m = folium.Map(location=center, zoom_start=13, tiles="CartoDB positron")
+
+m = folium.Map(
+    location=center,
+    zoom_start=13,
+    tiles="CartoDB positron",
+)
 
 # Route visualization and Elevation Plot
 if st.session_state["route"]:
@@ -176,8 +186,9 @@ if st.session_state["clicks"]:
         tooltip=popup_txt,
     ).add_to(m)
 
-# Map click handling - Increased Size
-st_data = st_folium(m, width=1600, height=800)
+# Map click handling - Full Screen
+# Use returned_objects to preventing reloading on zoom/pan
+st_data = st_folium(m, width=1800, height=850, returned_objects=["last_clicked"])
 
 # Render Elevation Chart below map
 if st.session_state["route"] and "chart_data" in locals():
