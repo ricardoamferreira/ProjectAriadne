@@ -8,7 +8,7 @@ from router import generate_loop_coords
 
 load_dotenv()
 
-# LLM Setup
+# Configuration
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 
@@ -19,9 +19,6 @@ class RunningRequest(BaseModel):
     direction: str = Field(
         description="The general heading: 'north', 'south', 'east', 'west'. Defaults to 'north' if unspecified."
     )
-
-
-# Export Function
 
 
 def run_ariadne_agent(user_text, current_lat, current_lon):
@@ -38,7 +35,7 @@ def run_ariadne_agent(user_text, current_lat, current_lon):
     structured_llm = llm.with_structured_output(RunningRequest)
 
     try:
-        # Extract parameters
+        # Intent extraction
         request_data = structured_llm.invoke(
             [SystemMessage(content=system_msg), HumanMessage(content=user_text)]
         )
@@ -46,13 +43,13 @@ def run_ariadne_agent(user_text, current_lat, current_lon):
         if not request_data:
             return None
 
-        # Call router
+        # Route generation
         coords, dist = generate_loop_coords(
             current_lat, current_lon, request_data.distance_km, request_data.direction
         )
 
         if coords:
-            # Return JSON
+            # JSON serialization
             return json.dumps({"coords": coords, "distance": dist})
         else:
             return None

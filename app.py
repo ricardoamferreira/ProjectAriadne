@@ -2,12 +2,13 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 from agent import run_ariadne_agent
+from router import geocode_address
 import json
 import altair as alt
 
 st.set_page_config(page_title="Project Ariadne", page_icon="🧶", layout="wide")
 
-# Custom CSS
+# Styling
 st.markdown(
     """
 <style>
@@ -19,7 +20,7 @@ st.markdown(
         padding-right: 1rem;
     }
     
-    /* Global Dark Theme overrides if needed */
+    /* Theme overrides */
     .stApp {
         background-color: #0E1117;
         color: #FAFAFA;
@@ -34,7 +35,7 @@ st.markdown(
         color: #FAFAFA !important;
     }
     
-    /* Metric styling for HUD */
+    /* HUD Metrics */
     [data-testid="stMetric"] {
         background-color: #1F2937; /* Dark gray/blue */
         padding: 10px;
@@ -85,7 +86,7 @@ st.markdown(
         color: #FFFFFF;
     }
     
-    /* Hide default menu and footer for cleaner app feel */
+    /* Clean interface */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -94,28 +95,53 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialize session state
+# State initialization
 if "clicks" not in st.session_state:
     st.session_state["clicks"] = []
 if "route" not in st.session_state:
     st.session_state["route"] = None
-# Persist distance for reload
+# Distance persistence
 if "route_dist" not in st.session_state:
     st.session_state["route_dist"] = None
 
-# Sidebar
+# Sidebar layout
 with st.sidebar:
     st.markdown("### 🏃‍♂️ Plan your next run")
 
-    # User input
+    # Location search
+    with st.form("search_form"):
+        search_query = st.text_input(
+            "Search for a place:", placeholder="e.g. Buckingham Palace, London"
+        )
+        search_submitted = st.form_submit_button("Set Location", type="primary")
+
+    if search_submitted:
+        if search_query:
+            with st.spinner("Searching..."):
+                coords = geocode_address(search_query)
+                if coords:
+                    st.session_state["clicks"] = [[coords[0], coords[1]]]
+                    # UI Feedback
+                    st.success(f"Found: {search_query}")
+                    st.rerun()
+                else:
+                    st.error("Location not found. Try again.")
+
+    st.markdown("---")
+
+    # Coach input
     with st.form("input_form"):
-        user_query = st.text_input("Ask your coach:", placeholder="e.g., '10km loop'")
+        user_query = st.text_input(
+            "Ask your coach",
+            label_visibility="collapsed",
+            placeholder="e.g., '10km loop'",
+        )
         submitted = st.form_submit_button("Submit Request", type="primary")
 
-    # Submit action
+    # Form handling
     if submitted:
         if not st.session_state["clicks"]:
-            st.error("⚠️ Click the map to set a Start Point first.")
+            st.error("⚠️ Click the map or Search to set a Start Point first.")
         elif not user_query:
             st.warning("Please type a distance.")
         else:
@@ -135,7 +161,7 @@ with st.sidebar:
                 else:
                     st.warning("AI didn't understand. Try 'Loop 5km'.")
 
-    # Reset button
+    # Reset logic
     st.divider()
     if st.button("Reset Map"):
         st.session_state["clicks"] = []
@@ -143,9 +169,9 @@ with st.sidebar:
         st.session_state["route_dist"] = None
         st.rerun()
 
-# --- Main Dashboard Area ---
+# Dashboard
 
-# 1. HUD Row (Distance Metric)
+# HUD
 hud_col1, hud_col2, hud_col3 = st.columns([1, 1, 2])
 with hud_col1:
     if st.session_state["route_dist"]:
@@ -172,7 +198,7 @@ with hud_col2:
     else:
         st.metric(label="ELEVATION GAIN", value="0 m")
 
-# 2. Main Map
+# Map
 # Center logic
 center = (
     st.session_state["clicks"][-1] if st.session_state["clicks"] else [51.5074, -0.1278]
@@ -184,15 +210,15 @@ m = folium.Map(
     tiles="CartoDB dark_matter",  # Dark mode tiles
 )
 
-# Route visualization
+# Route plotting
 if st.session_state["route"]:
-    # Split data for Map (lat, lon) and Elevation (dist, alt)
+    # Data preparation
     map_path = [[pt[0], pt[1]] for pt in st.session_state["route"]]
 
     # Red styled path
     folium.PolyLine(map_path, color="#FF4B4B", weight=4, opacity=0.9).add_to(m)
 
-    # Calculate cumulative distance for elevation plot
+    # Distance calculation
     import math
 
     def haversine(coord1, coord2):
@@ -220,9 +246,9 @@ if st.session_state["route"]:
 
     chart_data = pd.DataFrame({"Distance (km)": distances, "Elevation (m)": elevations})
 
-# Start point marker
+# Start marker
 if st.session_state["clicks"]:
-    # Dynamic popup text
+    # Popup text
     if st.session_state["route_dist"]:
         popup_txt = f"Loop: {st.session_state['route_dist']:.2f} km"
     else:
@@ -235,16 +261,14 @@ if st.session_state["clicks"]:
         tooltip=popup_txt,
     ).add_to(m)
 
-# Map click handling - Full Screen Dark
-# Use returned_objects to preventing reloading on zoom/pan
-# use_container_width=True fills the available space
+# Map interaction
 st_data = st_folium(
     m, height=750, use_container_width=True, returned_objects=["last_clicked"]
 )
 
-# Render Elevation Chart below map (Red Style)
+# Elevation chart
 if st.session_state["route"] and "chart_data" in locals():
-    # Create Altair chart to control background and interactivity
+    # Chart configuration
     chart = (
         alt.Chart(chart_data)
         .mark_area(color="#FF4B4B", opacity=0.8, line={"color": "#FF4B4B"})
@@ -269,7 +293,7 @@ if st.session_state["route"] and "chart_data" in locals():
 if st_data["last_clicked"]:
     new_click = [st_data["last_clicked"]["lat"], st_data["last_clicked"]["lng"]]
 
-    # Update on new click
+    # Click handler
     if not st.session_state["clicks"] or st.session_state["clicks"][-1] != new_click:
         st.session_state["clicks"] = [new_click]
         # Reset stats
