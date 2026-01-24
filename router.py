@@ -34,31 +34,28 @@ def get_bearing_from_text(direction_text):
 
 
 def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
-    # Real roads aren't straight lines. To hit our target distance,
-    # we aim for a smaller geometric shape, shrinking it by about 25%.
+    # Adjust distance to account for road geometry (approx. 75% efficiency)
     adjusted_km = target_km * 0.75
 
     # Earth's radius in km
     R = 6378.1
-    # Calculate the side length for our conceptual triangle
+    # Calculate side length for triangle
     d = adjusted_km / 3.0
 
-    # Convert the user's direction text into a bearing
+    # Convert direction to bearing
     base_angle = get_bearing_from_text(direction)
 
-    # Determining the other two points of our triangle relative to the start
-    # We want a loop that goes roughly in the 'direction'.
-    # A simple triangle: Start -> Point B (base_angle - 30 deg) -> Point C (base_angle + 30 deg) -> Start
+    # Calculate points B and C for the loop triangle using the specific bearing
     angle_b = math.radians(base_angle - 30)
     angle_c = math.radians(base_angle + 30)
 
-    # Calculating Point B coordinates
+    # Point B coordinates
     lat_b = start_lat + (d / R) * (180 / math.pi) * math.cos(angle_b)
     lon_b = start_lon + (d / R) * (180 / math.pi) * math.sin(angle_b) / math.cos(
         start_lat * math.pi / 180
     )
 
-    # Calculating Point C coordinates
+    # Point C coordinates
     lat_c = start_lat + (d / R) * (180 / math.pi) * math.cos(angle_c)
     lon_c = start_lon + (d / R) * (180 / math.pi) * math.sin(angle_c) / math.cos(
         start_lat * math.pi / 180

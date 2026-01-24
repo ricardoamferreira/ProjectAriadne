@@ -1,47 +1,62 @@
-from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
-from router import generate_loop_coords
-from dotenv import load_dotenv
 import json
+from typing import TypedDict, Annotated, Optional
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+from router import generate_loop_coords
 
 load_dotenv()
 
-
-# Adding a 'direction' parameter here so we can guide the route's heading
-@tool
-def generate_running_loop(
-    start_lat: float, start_lon: float, distance_km: float, direction: str = "north"
-):
-    """
-    Generates a running loop.
-    args:
-        distance_km: The target distance in km.
-        direction: The general heading (e.g., 'north', 'south', 'east', 'west').
-    """
-    coords, dist = generate_loop_coords(start_lat, start_lon, distance_km, direction)
-    if coords:
-        return json.dumps({"coords": coords, "distance": dist})
-    else:
-        return "Error: Could not generate route."
+# LLM Setup
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
-llm_with_tools = llm.bind_tools([generate_running_loop])
+class RunningRequest(BaseModel):
+    """Details for a running route request."""
+
+    distance_km: float = Field(description="The target distance in kilometers.")
+    direction: str = Field(
+        description="The general heading: 'north', 'south', 'east', 'west'. Defaults to 'north' if unspecified."
+    )
+
+
+# Export Function
 
 
 def run_ariadne_agent(user_text, current_lat, current_lon):
-    # Updating the system prompt to ensure the AI actually looks for a direction
+    """
+    Extracts intent using LLM, then calls router.
+    """
     system_msg = f"""
-    You are a running coach. The user is at Lat: {current_lat}, Lon: {current_lon}.
-    If the user asks for a run, extract the distance and the direction (North, South, East, West).
-    If no direction is given, pick a random one.
+    You are a running coach assistant.
+    The user is located at Lat: {current_lat}, Lon: {current_lon}.
+    Extract the desired distance and direction from their request.
+    If the user doesn't specify a direction, pick a random one or default to 'north'.
     """
 
-    messages = [("system", system_msg), ("user", user_text)]
-    ai_msg = llm_with_tools.invoke(messages)
+    structured_llm = llm.with_structured_output(RunningRequest)
 
-    if ai_msg.tool_calls:
-        for tool_call in ai_msg.tool_calls:
-            if tool_call["name"] == "generate_running_loop":
-                return generate_running_loop.invoke(tool_call["args"])
-    return None
+    try:
+        # Extract parameters
+        request_data = structured_llm.invoke(
+            [SystemMessage(content=system_msg), HumanMessage(content=user_text)]
+        )
+
+        if not request_data:
+            return None
+
+        # Call router
+        coords, dist = generate_loop_coords(
+            current_lat, current_lon, request_data.distance_km, request_data.direction
+        )
+
+        if coords:
+            # Return JSON
+            return json.dumps({"coords": coords, "distance": dist})
+        else:
+            return None
+
+    except Exception as e:
+        print(f"Agent Error: {e}")
+        return None
