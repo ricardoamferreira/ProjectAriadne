@@ -126,11 +126,40 @@ center = (
 )
 m = folium.Map(location=center, zoom_start=13, tiles="CartoDB positron")
 
-# Route visualization
+# Route visualization and Elevation Plot
 if st.session_state["route"]:
-    folium.PolyLine(
-        st.session_state["route"], color="#FF4B4B", weight=5, opacity=0.8
-    ).add_to(m)
+    # Split data for Map (lat, lon) and Elevation (dist, alt)
+    map_path = [[pt[0], pt[1]] for pt in st.session_state["route"]]
+
+    folium.PolyLine(map_path, color="#FF4B4B", weight=5, opacity=0.8).add_to(m)
+
+    # Calculate cumulative distance for elevation plot
+    import math
+
+    def haversine(coord1, coord2):
+        R = 6371  # Earth radius in km
+        lat1, lon1 = math.radians(coord1[0]), math.radians(coord1[1])
+        lat2, lon2 = math.radians(coord2[0]), math.radians(coord2[1])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        )
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
+
+    elevations = [pt[2] for pt in st.session_state["route"]]
+    distances = [0]
+    total_dist = 0
+    for i in range(1, len(st.session_state["route"])):
+        dist = haversine(st.session_state["route"][i - 1], st.session_state["route"][i])
+        total_dist += dist
+        distances.append(total_dist)
+
+    import pandas as pd
+
+    chart_data = pd.DataFrame({"Distance (km)": distances, "Elevation (m)": elevations})
 
 # Start point marker
 if st.session_state["clicks"]:
@@ -147,8 +176,19 @@ if st.session_state["clicks"]:
         tooltip=popup_txt,
     ).add_to(m)
 
-# Map click handling
-st_data = st_folium(m, width=1200, height=700)
+# Map click handling - Increased Size
+st_data = st_folium(m, width=1600, height=800)
+
+# Render Elevation Chart below map
+if st.session_state["route"] and "chart_data" in locals():
+    st.markdown("### ⛰️ Elevation Profile")
+    st.area_chart(
+        chart_data,
+        x="Distance (km)",
+        y="Elevation (m)",
+        width="stretch",
+        color="#FF4B4B",
+    )
 
 if st_data["last_clicked"]:
     new_click = [st_data["last_clicked"]["lat"], st_data["last_clicked"]["lng"]]

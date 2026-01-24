@@ -82,10 +82,14 @@ def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
 
         try:
             routes = client.directions(
-                coordinates=coords, profile="foot-walking", format="geojson"
+                coordinates=coords,
+                profile="foot-walking",
+                format="geojson",
+                elevation="true",
             )
             geometry = routes["features"][0]["geometry"]["coordinates"]
-            route_coords = [[lat, lon] for lon, lat in geometry]
+            # Geometry is [lon, lat, alt]
+            route_coords = [[lat, lon, alt] for lon, lat, alt in geometry]
             dist_km = routes["features"][0]["properties"]["summary"]["distance"] / 1000
 
             diff = abs(dist_km - target_km)
@@ -95,8 +99,8 @@ def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
                 best_diff = diff
                 best_route = (route_coords, dist_km)
 
-            # If within 10% tolerance, we are good
-            if diff / target_km <= 0.1:
+            # If within 5% tolerance, we are good
+            if diff / target_km <= 0.05:
                 print(
                     f"Attempt {attempt+1}: Distance {dist_km:.2f}km is within tolerance of {target_km}km."
                 )
