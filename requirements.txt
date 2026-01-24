@@ -1,0 +1,10 @@
+streamlit
+folium
+streamlit-folium
+langchain-openai
+langchain-core
+pydantic
+python-dotenv
+openrouteservice
+altair
+pandas
