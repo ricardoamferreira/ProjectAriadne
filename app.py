@@ -5,6 +5,8 @@ from agent import run_ariadne_agent
 from router import geocode_address
 import json
 import altair as alt
+import time
+
 
 st.set_page_config(page_title="Project Ariadne", page_icon="🧶", layout="wide")
 
@@ -103,6 +105,12 @@ if "route" not in st.session_state:
 # Distance persistence
 if "route_dist" not in st.session_state:
     st.session_state["route_dist"] = None
+# Rate limiting
+if "last_request_time" not in st.session_state:
+    st.session_state["last_request_time"] = 0
+if "request_count" not in st.session_state:
+    st.session_state["request_count"] = 0
+
 
 # Sidebar layout
 with st.sidebar:
@@ -111,12 +119,21 @@ with st.sidebar:
     # Location search
     with st.form("search_form"):
         search_query = st.text_input(
-            "Search for a place:", placeholder="e.g. Buckingham Palace, London"
+            "Search for a place:",
+            placeholder="e.g. Buckingham Palace, London",
+            max_chars=100,
         )
         search_submitted = st.form_submit_button("Set Location", type="primary")
 
     if search_submitted:
-        if search_query:
+        current_time = time.time()
+        if st.session_state["request_count"] >= 10:
+            st.error("🚫 Daily limit reached (10/10). Come back tomorrow!")
+        elif current_time - st.session_state["last_request_time"] < 2:
+            st.warning("⏳ Please wait a moment before trying again.")
+        elif search_query:
+            st.session_state["last_request_time"] = current_time
+            st.session_state["request_count"] += 1
             with st.spinner("Searching..."):
                 coords = geocode_address(search_query)
                 if coords:
@@ -135,16 +152,24 @@ with st.sidebar:
             "Ask your coach",
             label_visibility="collapsed",
             placeholder="e.g., '10km loop'",
+            max_chars=200,
         )
         submitted = st.form_submit_button("Submit Request", type="primary")
 
     # Form handling
     if submitted:
-        if not st.session_state["clicks"]:
+        current_time = time.time()
+        if st.session_state["request_count"] >= 10:
+            st.error("🚫 Daily limit reached (10/10). Come back tomorrow!")
+        elif current_time - st.session_state["last_request_time"] < 2:
+            st.warning("⏳ Please wait a moment before trying again.")
+        elif not st.session_state["clicks"]:
             st.error("⚠️ Click the map or Search to set a Start Point first.")
         elif not user_query:
             st.warning("Please type a distance.")
         else:
+            st.session_state["last_request_time"] = current_time
+            st.session_state["request_count"] += 1
             start_lat = st.session_state["clicks"][-1][0]
             start_lon = st.session_state["clicks"][-1][1]
 
@@ -160,6 +185,10 @@ with st.sidebar:
                         st.error("AI returned invalid data.")
                 else:
                     st.warning("AI didn't understand. Try 'Loop 5km'.")
+
+    # Usage stats
+    requests_left = 10 - st.session_state["request_count"]
+    st.caption(f"Requests remaining: {requests_left}/10")
 
     # Reset logic
     st.divider()
