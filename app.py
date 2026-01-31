@@ -1,5 +1,7 @@
 import streamlit as st
 import folium
+import re
+
 from streamlit_folium import st_folium
 from agent import run_ariadne_agent
 from router import geocode_address
@@ -8,7 +10,16 @@ import altair as alt
 import time
 
 
+import os
+
 st.set_page_config(page_title="Project Ariadne", page_icon="🧶", layout="wide")
+
+# Startup Checks
+if not os.getenv("ORS_API_KEY") and "ORS_API_KEY" not in st.secrets:
+    st.error(
+        "🚨 Critical Error: ORS_API_KEY is missing. Please check your .env file or secrets."
+    )
+    st.stop()
 
 # Styling
 st.markdown(
@@ -131,6 +142,8 @@ with st.sidebar:
             st.error("🚫 Daily limit reached (10/10). Come back tomorrow!")
         elif current_time - st.session_state["last_request_time"] < 2:
             st.warning("⏳ Please wait a moment before trying again.")
+        elif search_query and not re.match(r"^[a-zA-Z0-9\s,.-]+$", search_query):
+            st.error("⚠️ Invalid characters in search query.")
         elif search_query:
             st.session_state["last_request_time"] = current_time
             st.session_state["request_count"] += 1
@@ -167,6 +180,8 @@ with st.sidebar:
             st.error("⚠️ Click the map or Search to set a Start Point first.")
         elif not user_query:
             st.warning("Please type a distance.")
+        elif not re.match(r"^[a-zA-Z0-9\s,.-]+$", user_query):
+            st.error("⚠️ Invalid characters in request.")
         else:
             st.session_state["last_request_time"] = current_time
             st.session_state["request_count"] += 1
