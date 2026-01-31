@@ -43,6 +43,12 @@ def run_ariadne_agent(user_text, current_lat, current_lon):
         if not request_data:
             return None
 
+        # Clamp distance to 50km (max)
+        clamped_msg = None
+        if request_data.distance_km > 50:
+            request_data.distance_km = 50.0
+            clamped_msg = "⚠️ Distance LIMITED to 50km max."
+
         # Route generation
         coords, dist = generate_loop_coords(
             current_lat, current_lon, request_data.distance_km, request_data.direction
@@ -50,7 +56,10 @@ def run_ariadne_agent(user_text, current_lat, current_lon):
 
         if coords:
             # JSON serialization
-            return json.dumps({"coords": coords, "distance": dist})
+            response = {"coords": coords, "distance": dist}
+            if clamped_msg:
+                response["message"] = clamped_msg
+            return json.dumps(response)
         else:
             return None
 

@@ -77,6 +77,10 @@ def geocode_address(address_text):
 
 
 def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
+    # Safeguard cap
+    if target_km > 50:
+        target_km = 50.0
+
     client = get_ors_client()
     if not client:
         return None, 0

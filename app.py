@@ -181,6 +181,9 @@ with st.sidebar:
                         data = json.loads(result)
                         st.session_state["route"] = data["coords"]
                         st.session_state["route_dist"] = data["distance"]
+
+                        if "message" in data:
+                            st.warning(data["message"])
                     except:
                         st.error("AI returned invalid data.")
                 else:
