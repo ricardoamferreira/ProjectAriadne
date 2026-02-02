@@ -63,32 +63,38 @@ if "map_center" not in st.session_state:
     st.session_state["map_center"] = [51.5074, -0.1278]  # Default: London
 if "map_zoom" not in st.session_state:
     st.session_state["map_zoom"] = 13
+if "force_map_update" not in st.session_state:
+    st.session_state["force_map_update"] = False
 
 # Handle Map State (Clicks & Panning)
 if "main_map" in st.session_state:
-    # Preserve view
-    if st.session_state["main_map"].get("center"):
-        st.session_state["map_center"] = [
-            st.session_state["main_map"]["center"]["lat"],
-            st.session_state["main_map"]["center"]["lng"],
-        ]
-    if st.session_state["main_map"].get("zoom"):
-        st.session_state["map_zoom"] = st.session_state["main_map"]["zoom"]
+    # Check if we should ignore the map state (after a programmatic update)
+    if st.session_state.get("force_map_update", False):
+        st.session_state["force_map_update"] = False
+    else:
+        # Preserve view
+        if st.session_state["main_map"].get("center"):
+            st.session_state["map_center"] = [
+                st.session_state["main_map"]["center"]["lat"],
+                st.session_state["main_map"]["center"]["lng"],
+            ]
+        if st.session_state["main_map"].get("zoom"):
+            st.session_state["map_zoom"] = st.session_state["main_map"]["zoom"]
 
-    # Handle Clicks
-    if st.session_state["main_map"].get("last_clicked"):
-        new_click = [
-            st.session_state["main_map"]["last_clicked"]["lat"],
-            st.session_state["main_map"]["last_clicked"]["lng"],
-        ]
-        # Update only if different
-        if (
-            not st.session_state["clicks"]
-            or st.session_state["clicks"][-1] != new_click
-        ):
-            st.session_state["clicks"] = [new_click]
-            st.session_state["route"] = None
-            st.session_state["route_dist"] = None
+        # Handle Clicks
+        if st.session_state["main_map"].get("last_clicked"):
+            new_click = [
+                st.session_state["main_map"]["last_clicked"]["lat"],
+                st.session_state["main_map"]["last_clicked"]["lng"],
+            ]
+            # Update only if different
+            if (
+                not st.session_state["clicks"]
+                or st.session_state["clicks"][-1] != new_click
+            ):
+                st.session_state["clicks"] = [new_click]
+                st.session_state["route"] = None
+                st.session_state["route_dist"] = None
 
 # Chat History
 if "messages" not in st.session_state:
@@ -120,6 +126,7 @@ with st.sidebar:
                     # Update map view
                     st.session_state["map_center"] = [coords[0], coords[1]]
                     st.session_state["map_zoom"] = 15
+                    st.session_state["force_map_update"] = True
                     # Clear route when location changes
                     st.session_state["route"] = None
                     st.session_state["route_dist"] = None

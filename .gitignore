@@ -111,7 +111,7 @@ env.bak/
 venv.bak/
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
 
 # Custom Cache
 cache/
