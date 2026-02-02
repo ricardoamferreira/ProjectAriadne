@@ -1,16 +1,17 @@
 import streamlit as st
 import folium
 import re
-
-from streamlit_folium import st_folium
-from agent import run_ariadne_agent
-from router import geocode_address
-import json
+import math
 import altair as alt
 import time
-
-
 import os
+import json
+import pandas as pd
+
+from streamlit_folium import st_folium
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from agent import run_ariadne_agent
+from router import geocode_address, generate_loop_coords
 
 st.set_page_config(page_title="Project Ariadne", page_icon="🧶", layout="wide")
 
@@ -33,76 +34,15 @@ st.markdown(
         padding-right: 1rem;
     }
     
-    /* Theme overrides */
-    .stApp {
-        background-color: #0E1117;
-        color: #FAFAFA;
-    }
-    
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background-color: #262730;
-        border-right: 1px solid #464B5C;
-    }
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
-        color: #FAFAFA !important;
-    }
-    
-    /* HUD Metrics */
-    [data-testid="stMetric"] {
-        background-color: #1F2937; /* Dark gray/blue */
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #374151;
-        color: #FF4B4B; /* Red text */
-    }
-    [data-testid="stMetricLabel"] {
-        color: #9CA3AF;
-        font-weight: 600;
-    }
-    [data-testid="stMetricValue"] {
-        color: #FF4B4B;
-    }
-    
-    /* Input field styling */
-    .stTextInput > div > div > input {
-        border-radius: 8px;
-        background-color: #374151;
-        color: white;
-        border: 1px solid #4B5563;
-    }
-    .stTextInput > div > div > input::placeholder {
-        color: #9CA3AF !important;
-        opacity: 1;
-    }
-    
-    /* Button Styling */
-    .stButton > button {
-        border-radius: 8px;
-        font-weight: 600;
-        width: 100%;
-        border: none;
-        transition: all 0.2s ease;
-        background-color: #374151;
-        color: white;
-    }
-    
-    /* Primary button enhancements */
-    .stButton > button[kind="primary"] {
-        background-color: #FF4B4B;
-        color: #FFFFFF;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    }
-    .stButton > button[kind="primary"]:hover {
-        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
-        background-color: #FF2B2B; 
-        color: #FFFFFF;
-    }
-    
     /* Clean interface */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    
+    /* Chat styling */
+    .stChatMessage {
+        padding: 0.5rem;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -113,14 +53,20 @@ if "clicks" not in st.session_state:
     st.session_state["clicks"] = []
 if "route" not in st.session_state:
     st.session_state["route"] = None
-# Distance persistence
 if "route_dist" not in st.session_state:
     st.session_state["route_dist"] = None
-# Rate limiting
 if "last_request_time" not in st.session_state:
     st.session_state["last_request_time"] = 0
 if "request_count" not in st.session_state:
     st.session_state["request_count"] = 0
+
+# Chat History
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        AIMessage(
+            content="Hi! I'm Ariadne, your AI running coach. 🏃‍♂️\n\nTell me where you want to run and how far (e.g. '5km loop north of here')."
+        )
+    ]
 
 
 # Sidebar layout
@@ -128,98 +74,119 @@ with st.sidebar:
     st.markdown("### 🏃‍♂️ Plan your next run")
 
     # Location search
-    with st.form("search_form"):
-        search_query = st.text_input(
-            "Search for a place:",
-            placeholder="e.g. Buckingham Palace, London",
-            max_chars=100,
-        )
-        search_submitted = st.form_submit_button("Set Location", type="primary")
+    with st.expander("📍 Location Settings", expanded=not st.session_state["clicks"]):
+        with st.form("search_form"):
+            search_query = st.text_input(
+                "Set Start Location:",
+                placeholder="e.g. Hyde Park, London",
+            )
+            search_submitted = st.form_submit_button("Find Place")
 
-    if search_submitted:
-        current_time = time.time()
-        if st.session_state["request_count"] >= 10:
-            st.error("🚫 Daily limit reached (10/10). Come back tomorrow!")
-        elif current_time - st.session_state["last_request_time"] < 2:
-            st.warning("⏳ Please wait a moment before trying again.")
-        elif search_query and not re.match(r"^[a-zA-Z0-9\s,.-]+$", search_query):
-            st.error("⚠️ Invalid characters in search query.")
-        elif search_query:
-            st.session_state["last_request_time"] = current_time
-            st.session_state["request_count"] += 1
+        if search_submitted and search_query:
             with st.spinner("Searching..."):
                 coords = geocode_address(search_query)
                 if coords:
                     st.session_state["clicks"] = [[coords[0], coords[1]]]
-                    # UI Feedback
+                    # Clear route when location changes
+                    st.session_state["route"] = None
+                    st.session_state["route_dist"] = None
                     st.success(f"Found: {search_query}")
                     st.rerun()
                 else:
-                    st.error("Location not found. Try again.")
+                    st.error("Location not found.")
 
-    st.markdown("---")
-
-    # Coach input
-    with st.form("input_form"):
-        user_query = st.text_input(
-            "Ask your coach",
-            label_visibility="collapsed",
-            placeholder="e.g., '10km loop'",
-            max_chars=200,
-        )
-        submitted = st.form_submit_button("Submit Request", type="primary")
-
-    # Form handling
-    if submitted:
-        current_time = time.time()
-        if st.session_state["request_count"] >= 10:
-            st.error("🚫 Daily limit reached (10/10). Come back tomorrow!")
-        elif current_time - st.session_state["last_request_time"] < 2:
-            st.warning("⏳ Please wait a moment before trying again.")
-        elif not st.session_state["clicks"]:
-            st.error("⚠️ Click the map or Search to set a Start Point first.")
-        elif not user_query:
-            st.warning("Please type a distance.")
-        elif not re.match(r"^[a-zA-Z0-9\s,.-]+$", user_query):
-            st.error("⚠️ Invalid characters in request.")
-        else:
-            st.session_state["last_request_time"] = current_time
-            st.session_state["request_count"] += 1
-            start_lat = st.session_state["clicks"][-1][0]
-            start_lon = st.session_state["clicks"][-1][1]
-
-            with st.spinner("Calculating route..."):
-                result = run_ariadne_agent(user_query, start_lat, start_lon)
-
-                if result:
-                    try:
-                        data = json.loads(result)
-                        st.session_state["route"] = data["coords"]
-                        st.session_state["route_dist"] = data["distance"]
-
-                        if "message" in data:
-                            st.warning(data["message"])
-                    except:
-                        st.error("AI returned invalid data.")
-                else:
-                    st.warning("AI didn't understand. Try 'Loop 5km'.")
-
-    # Usage stats
-    requests_left = 10 - st.session_state["request_count"]
-    st.caption(f"Requests remaining: {requests_left}/10")
-
-    # Reset logic
     st.divider()
-    if st.button("Reset Map"):
-        st.session_state["clicks"] = []
-        st.session_state["route"] = None
-        st.session_state["route_dist"] = None
-        st.rerun()
+
+    # Chat Interface
+    chat_container = st.container(height=500)
+
+    with chat_container:
+        for msg in st.session_state["messages"]:
+            if isinstance(msg, HumanMessage):
+                st.chat_message("user").write(msg.content)
+            elif isinstance(msg, AIMessage):
+                if msg.content:
+                    st.chat_message("assistant").write(msg.content)
+            elif isinstance(msg, ToolMessage):
+                with st.chat_message("assistant"):
+                    st.info(f"🗺️ {msg.content}")
+
+    # Helper to execute tool calls
+    def handle_tool_call(tool_call, start_lat, start_lon):
+        if tool_call["name"] == "generate_route":
+            args = tool_call["args"]
+            dist_km = args.get("distance_km")
+            direction = args.get("direction", "north")
+
+            with st.status(
+                f"Generating {dist_km}km run {direction}...", expanded=True
+            ) as status:
+                coords, dist = generate_loop_coords(
+                    start_lat, start_lon, dist_km, direction
+                )
+                if coords:
+                    st.session_state["route"] = coords
+                    st.session_state["route_dist"] = dist
+                    status.update(label="Route Found!", state="complete")
+                    return f"Plotting a {dist:.2f}km route."
+                else:
+                    status.update(label="Failed to generate route", state="error")
+                    return "Failed to start route generation."
+        return "Unknown tool."
+
+    # Chat Input
+    if prompt := st.chat_input("Ask your coach..."):
+        # Guardrail: Input Validation
+        if not re.match(r"^[a-zA-Z0-9\s,.\-?!'\"éèà%()]+$", prompt):
+            st.error(
+                "⚠️ Invalid characters detected. Please use letters, numbers, and basic punctuation."
+            )
+        elif not st.session_state["clicks"]:
+            st.error("Please set a start location above first!")
+        else:
+            # 1. Add user message
+            st.session_state["messages"].append(HumanMessage(content=prompt))
+            with chat_container:
+                st.chat_message("user").write(prompt)
+
+            # 2. Call Agent
+            current_lat = st.session_state["clicks"][-1][0]
+            current_lon = st.session_state["clicks"][-1][1]
+
+            with st.spinner("Thinking..."):
+                response = run_ariadne_agent(
+                    st.session_state["messages"], current_lat, current_lon
+                )
+
+            # 3. Handle Response
+            st.session_state["messages"].append(response)
+
+            # 4. Check for tool calls
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    # Execute tool logic
+                    tool_result_text = handle_tool_call(
+                        tool_call, current_lat, current_lon
+                    )
+
+                    # Create Tool Message
+                    tool_msg = ToolMessage(
+                        content=tool_result_text, tool_call_id=tool_call["id"]
+                    )
+                    st.session_state["messages"].append(tool_msg)
+
+                    # Force rerun to update map
+                    st.rerun()
+
+            elif response.content:
+                with chat_container:
+                    st.chat_message("assistant").write(response.content)
+
 
 # Dashboard
 
 # HUD
-hud_col1, hud_col2, hud_col3 = st.columns([1, 1, 2])
+hud_col1, hud_col2 = st.columns([1, 1])
 with hud_col1:
     if st.session_state["route_dist"]:
         dist_km = st.session_state["route_dist"]
@@ -254,7 +221,7 @@ center = (
 m = folium.Map(
     location=center,
     zoom_start=13,
-    tiles="CartoDB dark_matter",  # Dark mode tiles
+    tiles="CartoDB voyager",  # Colorful, modern tiles
 )
 
 # Route plotting
@@ -262,12 +229,10 @@ if st.session_state["route"]:
     # Data preparation
     map_path = [[pt[0], pt[1]] for pt in st.session_state["route"]]
 
-    # Red styled path
-    folium.PolyLine(map_path, color="#FF4B4B", weight=4, opacity=0.9).add_to(m)
+    # Green styled path
+    folium.PolyLine(map_path, color="#10B981", weight=4, opacity=0.9).add_to(m)
 
     # Distance calculation
-    import math
-
     def haversine(coord1, coord2):
         R = 6371  # Earth radius in km
         lat1, lon1 = math.radians(coord1[0]), math.radians(coord1[1])
@@ -289,8 +254,6 @@ if st.session_state["route"]:
         total_dist += dist
         distances.append(total_dist)
 
-    import pandas as pd
-
     chart_data = pd.DataFrame({"Distance (km)": distances, "Elevation (m)": elevations})
 
 # Start marker
@@ -303,22 +266,20 @@ if st.session_state["clicks"]:
 
     folium.Marker(
         st.session_state["clicks"][-1],
-        icon=folium.Icon(color="red", icon="play"),
+        icon=folium.Icon(color="green", icon="play"),
         popup=popup_txt,
         tooltip=popup_txt,
     ).add_to(m)
 
 # Map interaction
-st_data = st_folium(
-    m, height=750, use_container_width=True, returned_objects=["last_clicked"]
-)
+st_data = st_folium(m, height=1000, width="stretch", returned_objects=["last_clicked"])
 
 # Elevation chart
 if st.session_state["route"] and "chart_data" in locals():
     # Chart configuration
     chart = (
         alt.Chart(chart_data)
-        .mark_area(color="#FF4B4B", opacity=0.8, line={"color": "#FF4B4B"})
+        .mark_area(color="#10B981", opacity=0.6, line={"color": "#10B981"})
         .encode(
             x=alt.X(
                 "Distance (km)",
