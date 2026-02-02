@@ -59,6 +59,36 @@ if "last_request_time" not in st.session_state:
     st.session_state["last_request_time"] = 0
 if "request_count" not in st.session_state:
     st.session_state["request_count"] = 0
+if "map_center" not in st.session_state:
+    st.session_state["map_center"] = [51.5074, -0.1278]  # Default: London
+if "map_zoom" not in st.session_state:
+    st.session_state["map_zoom"] = 13
+
+# Handle Map State (Clicks & Panning)
+if "main_map" in st.session_state:
+    # Preserve view
+    if st.session_state["main_map"].get("center"):
+        st.session_state["map_center"] = [
+            st.session_state["main_map"]["center"]["lat"],
+            st.session_state["main_map"]["center"]["lng"],
+        ]
+    if st.session_state["main_map"].get("zoom"):
+        st.session_state["map_zoom"] = st.session_state["main_map"]["zoom"]
+
+    # Handle Clicks
+    if st.session_state["main_map"].get("last_clicked"):
+        new_click = [
+            st.session_state["main_map"]["last_clicked"]["lat"],
+            st.session_state["main_map"]["last_clicked"]["lng"],
+        ]
+        # Update only if different
+        if (
+            not st.session_state["clicks"]
+            or st.session_state["clicks"][-1] != new_click
+        ):
+            st.session_state["clicks"] = [new_click]
+            st.session_state["route"] = None
+            st.session_state["route_dist"] = None
 
 # Chat History
 if "messages" not in st.session_state:
@@ -87,6 +117,9 @@ with st.sidebar:
                 coords = geocode_address(search_query)
                 if coords:
                     st.session_state["clicks"] = [[coords[0], coords[1]]]
+                    # Update map view
+                    st.session_state["map_center"] = [coords[0], coords[1]]
+                    st.session_state["map_zoom"] = 15
                     # Clear route when location changes
                     st.session_state["route"] = None
                     st.session_state["route_dist"] = None
@@ -213,16 +246,12 @@ with hud_col2:
         st.metric(label="ELEVATION GAIN", value="0 m")
 
 # Map
-# Center logic
-center = (
-    st.session_state["clicks"][-1] if st.session_state["clicks"] else [51.5074, -0.1278]
-)
-
 m = folium.Map(
-    location=center,
-    zoom_start=13,
+    location=st.session_state["map_center"],
+    zoom_start=st.session_state["map_zoom"],
     tiles="CartoDB voyager",  # Colorful, modern tiles
 )
+fg = folium.FeatureGroup(name="Dynamic Markers")
 
 # Route plotting
 if st.session_state["route"]:
@@ -230,7 +259,7 @@ if st.session_state["route"]:
     map_path = [[pt[0], pt[1]] for pt in st.session_state["route"]]
 
     # Green styled path
-    folium.PolyLine(map_path, color="#10B981", weight=4, opacity=0.9).add_to(m)
+    folium.PolyLine(map_path, color="#10B981", weight=4, opacity=0.9).add_to(fg)
 
     # Distance calculation
     def haversine(coord1, coord2):
@@ -269,10 +298,17 @@ if st.session_state["clicks"]:
         icon=folium.Icon(color="green", icon="play"),
         popup=popup_txt,
         tooltip=popup_txt,
-    ).add_to(m)
+    ).add_to(fg)
 
 # Map interaction
-st_data = st_folium(m, height=1000, width="stretch", returned_objects=["last_clicked"])
+st_folium(
+    m,
+    feature_group_to_add=fg,
+    height=1000,
+    width="stretch",
+    returned_objects=["last_clicked", "center", "zoom"],
+    key="main_map",
+)
 
 # Elevation chart
 if st.session_state["route"] and "chart_data" in locals():
@@ -297,14 +333,3 @@ if st.session_state["route"] and "chart_data" in locals():
     )
 
     st.altair_chart(chart, width="stretch")
-
-if st_data["last_clicked"]:
-    new_click = [st_data["last_clicked"]["lat"], st_data["last_clicked"]["lng"]]
-
-    # Click handler
-    if not st.session_state["clicks"] or st.session_state["clicks"][-1] != new_click:
-        st.session_state["clicks"] = [new_click]
-        # Reset stats
-        st.session_state["route"] = None
-        st.session_state["route_dist"] = None
-        st.rerun()
