@@ -178,3 +178,28 @@ def generate_loop_coords(start_lat, start_lon, target_km, direction="north"):
         return best_route
 
     return None, 0
+
+
+def generate_gpx(route_coords):
+    """
+    Generates a GPX XML string from a list of coordinates.
+    route_coords: List of [lat, lon, alt]
+    """
+    gpx_header = """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Project Ariadne" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Ariadne Run</name>
+    <trkseg>
+"""
+    gpx_footer = """    </trkseg>
+  </trk>
+</gpx>"""
+
+    trkpts = []
+    for point in route_coords:
+        lat, lon, ele = point
+        trkpts.append(
+            f'      <trkpt lat="{lat}" lon="{lon}">\n        <ele>{ele}</ele>\n      </trkpt>'
+        )
+
+    return gpx_header + "\n".join(trkpts) + "\n" + gpx_footer

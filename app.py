@@ -11,7 +11,7 @@ import pandas as pd
 from streamlit_folium import st_folium
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from agent import run_ariadne_agent
-from router import geocode_address, generate_loop_coords
+from router import geocode_address, generate_loop_coords, generate_gpx
 
 st.set_page_config(page_title="Project Ariadne", page_icon="🧶", layout="wide")
 
@@ -215,9 +215,20 @@ with st.sidebar:
                 with chat_container:
                     st.chat_message("assistant").write(response.content)
 
+    # GPX Download Button
+    if st.session_state["route"]:
+        gpx_data = generate_gpx(st.session_state["route"])
+        st.download_button(
+            label="Download GPX",
+            data=gpx_data,
+            file_name="ariadne_run.gpx",
+            mime="application/gpx+xml",
+        )
+
 
 # Dashboard
 
+# HUD
 # HUD
 hud_col1, hud_col2 = st.columns([1, 1])
 with hud_col1:
