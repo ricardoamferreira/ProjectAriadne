@@ -62,21 +62,12 @@ if "map_zoom" not in st.session_state:
 if "force_map_update" not in st.session_state:
     st.session_state["force_map_update"] = False
 
-# Handle Map State (Clicks & Panning)
+# Handle Map State (Clicks only — center/zoom not tracked to avoid rerun on every pan)
 if "main_map" in st.session_state:
     # Check if we should ignore the map state (after a programmatic update)
     if st.session_state.get("force_map_update", False):
         st.session_state["force_map_update"] = False
     else:
-        # Preserve view
-        if st.session_state["main_map"].get("center"):
-            st.session_state["map_center"] = [
-                st.session_state["main_map"]["center"]["lat"],
-                st.session_state["main_map"]["center"]["lng"],
-            ]
-        if st.session_state["main_map"].get("zoom"):
-            st.session_state["map_zoom"] = st.session_state["main_map"]["zoom"]
-
         # Handle Clicks
         if st.session_state["main_map"].get("last_clicked"):
             new_click = [
@@ -89,6 +80,7 @@ if "main_map" in st.session_state:
                 or st.session_state["clicks"][-1] != new_click
             ):
                 st.session_state["clicks"] = [new_click]
+                st.session_state["map_center"] = new_click
                 st.session_state["route"] = None
                 st.session_state["route_dist"] = None
 
@@ -320,7 +312,7 @@ st_folium(
     feature_group_to_add=fg,
     height=1000,
     width="stretch",
-    returned_objects=["last_clicked", "center", "zoom"],
+    returned_objects=["last_clicked"],
     key="main_map",
 )
 
@@ -346,4 +338,4 @@ if st.session_state["route"] and "chart_data" in locals():
         .properties(height=200)  # Fixed height
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
