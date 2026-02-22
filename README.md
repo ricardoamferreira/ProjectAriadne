@@ -9,13 +9,17 @@
 ## Features
 
 - **🏃‍♂️ AI Coach Interface**: Chat with Ariadne to request routes in plain English.
-- **🔄 Dynamic Loop Generation**: Automatically creates loop courses based on your desired distance and direction.
+- **🔄 Dynamic Loop Generation**: Automatically creates loop courses based on your desired distance and direction (up to 50km).
 - **🗺️ Interactive Map**:
+    - **Set Start by Clicking**: Click anywhere on the map to set your starting point.
     - **Smart Recentering**: The map automatically focuses on your searched location.
+    - **Smooth Panning**: Map panning and zooming don't trigger unnecessary reruns.
     - **Elevation Profile**: Visualize the elevation gain of your route.
     - **Modern UI**: Clean interface with custom map tiles (CartoDB voyager).
+- **📊 Live HUD**: Displays route distance (km/mi) and total elevation gain (m/ft) after generation.
 - **📂 GPX Export**: Download your generated routes as GPX files for use with Strava, Garmin, or other fitness apps.
 - **🛡️ Secure**: Input sanitization and environment variable management for API keys.
+- **🐳 Dev Container**: Open instantly in a pre-configured environment via VS Code Dev Containers or GitHub Codespaces.
 
 ## Setup
 
@@ -64,10 +68,11 @@
 2.  Open your browser to the local URL (usually `http://localhost:8501`).
 
 3.  **How to use**:
-    - **Set Location**: Use the sidebar to search for a starting location (e.g., "Central Park, NY").
+    - **Set Location**: Use the sidebar to search for a starting location (e.g., "Central Park, NY"), or click directly on the map.
     - **Ask for a Route**: In the chat interface, type your request.
         - *"I want a 5km run."*
         - *"Give me a 10km loop to the east."*
+    - **View Stats**: Distance and elevation gain are shown in the HUD above the map.
     - **Download**: Once a route is generated, click "Download GPX" to save it.
 
 ## Tech Stack
