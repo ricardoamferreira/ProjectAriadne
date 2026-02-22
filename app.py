@@ -55,10 +55,6 @@ if "route" not in st.session_state:
     st.session_state["route"] = None
 if "route_dist" not in st.session_state:
     st.session_state["route_dist"] = None
-if "last_request_time" not in st.session_state:
-    st.session_state["last_request_time"] = 0
-if "request_count" not in st.session_state:
-    st.session_state["request_count"] = 0
 if "map_center" not in st.session_state:
     st.session_state["map_center"] = [51.5074, -0.1278]  # Default: London
 if "map_zoom" not in st.session_state:
@@ -215,8 +211,8 @@ with st.sidebar:
                     )
                     st.session_state["messages"].append(tool_msg)
 
-                    # Force rerun to update map
-                    st.rerun()
+                # Rerun once after all tool calls are processed to update map
+                st.rerun()
 
             elif response.content:
                 with chat_container:
@@ -350,4 +346,4 @@ if st.session_state["route"] and "chart_data" in locals():
         .properties(height=200)  # Fixed height
     )
 
-    st.altair_chart(chart, width="stretch")
+    st.altair_chart(chart, use_container_width=True)

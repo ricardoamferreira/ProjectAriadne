@@ -11,7 +11,6 @@ from langchain_core.messages import (
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from router import generate_loop_coords
 
 load_dotenv()
 
